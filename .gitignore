@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.uv/
+
+# Data and outputs
+data/
+tests/data/
+weights/
+predictions/
+lightning_logs/
+
+# IDE
+.vscode/
+.idea/
+
+# Local config
+.env
+
+# One-off scripts
+scripts/generate_splits.py
+scripts/eda.py
+eda/
+cufile.log
+/results
+/scripts/cache
+uv.lock
+/cache
+/videos
+tests/scratch_test.ipynb
+scripts/predict_sparse_from_dense.py
+scripts/train_sparse_from_dense.py
+/det_threshold_sweeps
+tests/test_propagate_approach.py
+scripts/propagate_approach.py
+PROPAGATION_FINDINGS.md
+REFACTORING.md
+scripts/annotate_geff_estimated_nodes.py
+scripts/auto_naive_detection.py
+/visualize/sandbox_examples
+visualize/naive_detection_interactive.py
+visualize/division_metric_sandbox.py
+src/tracking_cellmot/estimate_db.py
+
+visualize/generate_videos.py
