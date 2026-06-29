@@ -1020,6 +1020,7 @@ def train(
     window_size: int = 2,
     augmentations: list | None = DEFAULT_AUGMENTATIONS,
     pool_kernel_um: float = 5.0,
+    data_parallel: bool = True,
 ) -> UNetNodeTransformer:
     """Train on one fold from a pre-computed splits file.
 
@@ -1122,6 +1123,19 @@ def train(
         pos_feat_dim=pos_feat_dim,
     ).to(device)
 
+    # Simple multi-GPU: split the heavy UNet pass across all visible GPUs.
+    # Only the UNet is wrapped (it takes/returns plain batched tensors); the
+    # detection head and transformer stay on cuda:0. Checkpoints are saved with
+    # the DataParallel "module." prefix stripped so they load on a single GPU.
+    if data_parallel and device.type == "cuda" and torch.cuda.device_count() > 1:
+        n_gpus = torch.cuda.device_count()
+        model.unet = nn.DataParallel(model.unet)
+        print(
+            f"DataParallel: UNet across {n_gpus} GPUs "
+            f"(effective per-GPU batch {max(1, batch_size // n_gpus)})",
+            flush=True,
+        )
+
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {n_params:,}", flush=True)
 
@@ -1150,7 +1164,12 @@ def train(
 
         if is_best:
             best_score = score
-            torch.save(model.state_dict(), save_path)
+            # Normalise any DataParallel "unet.module." prefix to "unet." so the
+            # checkpoint loads on a single GPU (e.g. in the prediction script).
+            torch.save(
+                {k.replace("unet.module.", "unet.", 1): v for k, v in model.state_dict().items()},
+                save_path,
+            )
 
         marker = "*" if is_best else " "
         pbar.set_postfix(edge=f"{edge_loss:.4f}", det=f"{det_loss:.4f}", acc=f"{test_acc:.4f}")
@@ -1163,7 +1182,13 @@ def train(
 
     print(f"\nBest score (acc*recall): {best_score:.4f}, saved to {save_path}", flush=True)
     if save_path.exists():
-        model.load_state_dict(torch.load(save_path, map_location=device, weights_only=True))
+        state = torch.load(save_path, map_location=device, weights_only=True)
+        if isinstance(model.unet, nn.DataParallel):
+            state = {
+                (k.replace("unet.", "unet.module.", 1) if k.startswith("unet.") else k): v
+                for k, v in state.items()
+            }
+        model.load_state_dict(state)
     return model
 
 
@@ -1204,6 +1229,11 @@ def main() -> None:
                         help="Number of consecutive frames per training window (default: 2).")
     parser.add_argument("--pool-kernel-um", type=float, default=5.0,
                         help="Local-max suppression distance in microns (default: 5.0).")
+    parser.add_argument("--data-parallel", dest="data_parallel", action="store_true", default=True,
+                        help="Split the UNet across all visible GPUs via nn.DataParallel "
+                             "when more than one is available (default: on).")
+    parser.add_argument("--single-gpu", dest="data_parallel", action="store_false",
+                        help="Disable multi-GPU; train on cuda:0 only.")
 
     args = parser.parse_args()
 
@@ -1238,6 +1268,7 @@ def main() -> None:
             debug_video=debug_video,
             window_size=args.window_size,
             pool_kernel_um=args.pool_kernel_um,
+            data_parallel=args.data_parallel,
         )
 
 
