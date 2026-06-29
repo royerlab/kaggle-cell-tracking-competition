@@ -150,6 +150,18 @@ print(f"Final Score:            {result.score:.4f}")
 - **Images**: OME-Zarr with dimensions `(T, Z, Y, X)`. Scale of the spatial axes `Z, Y, X` is `1.625, 0.40625, 0.40625`, in microns per pixel.
 - **Tracks**: GEFF files (tracksdata) — sparse spatial graphs with nodes `(t, z, y, x)` and temporal edges. Only a subset of cells are annotated. Divisions are encoded as one source node with two target edges.
 
+### Layout
+
+Each dataset is a `{name}.zarr` image with a paired `{name}.geff` track graph in the same directory. On Kaggle these sit under the competition mount:
+
+```
+/kaggle/input/competitions/biohub-cell-tracking-during-development/
+├── train/   {name}.zarr + {name}.geff   (ground truth provided)
+└── test/    {name}.zarr                  (no ground truth — for submission)
+```
+
+`scripts/dataspec.py` resolves the dataset directory automatically: it uses `$CELLMOT_DATA_DIR` if set, otherwise the Kaggle `train/` mount when running on Kaggle, otherwise local `./data/dense_channel`. Every script also accepts `--data-dir` (and `--splits`) to point at any location per run — e.g. `--data-dir <competition>/test` for prediction.
+
 ## Dependencies
 
 - PyTorch
