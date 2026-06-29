@@ -111,7 +111,7 @@ def _evaluate_pair(
 from augmentations import brightness_augment, flip_augment
 
 DEFAULT_AUGMENTATIONS = [brightness_augment, flip_augment]
-from dataspec import INTERACTIVE, WEIGHTS_PATH
+from dataspec import WEIGHTS_PATH
 
 DEFAULT_METHOD = "unet_transformer"
 _POS_EMBED_DIM = 8   # per axis; total = 4 axes × _POS_EMBED_DIM = 32
@@ -801,10 +801,10 @@ def train_epoch(
 
     if max_iters is not None:
         batch_iter = _cycle(loader)
-        pbar = tqdm(range(max_iters), desc="  iters", leave=False, disable=not INTERACTIVE)
+        pbar = tqdm(range(max_iters), desc="  iters", leave=False, disable=False)
     else:
         batch_iter = iter(loader)
-        pbar = tqdm(range(len(loader)), desc="  batches", leave=False, disable=not INTERACTIVE)
+        pbar = tqdm(range(len(loader)), desc="  batches", leave=False, disable=False)
 
     t_data, t_forward, t_backward = 0.0, 0.0, 0.0
     t0 = time.perf_counter()
@@ -1058,7 +1058,7 @@ def train(
     ) -> list[tuple[VideoMeta, list[FrameWindowData]]]:
         print(f"Loading {desc} ({len(files)} datasets)...", flush=True)
         data: list[tuple[VideoMeta, list[FrameWindowData]]] = []
-        for f in tqdm(files, desc=desc, disable=not INTERACTIVE):
+        for f in tqdm(files, desc=desc, disable=False):
             video_meta, windows = load_dataset_windows(
                 f, window_size=window_size,
                 max_frames=max_frames,
@@ -1105,7 +1105,8 @@ def train(
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}", flush=True)
+    n_visible = torch.cuda.device_count() if device.type == "cuda" else 0
+    print(f"Using device: {device} | visible CUDA GPUs: {n_visible}", flush=True)
 
     unet = TemporalUNet3D(
         in_channels=1,
@@ -1127,14 +1128,16 @@ def train(
     # Only the UNet is wrapped (it takes/returns plain batched tensors); the
     # detection head and transformer stay on cuda:0. Checkpoints are saved with
     # the DataParallel "module." prefix stripped so they load on a single GPU.
-    if data_parallel and device.type == "cuda" and torch.cuda.device_count() > 1:
-        n_gpus = torch.cuda.device_count()
+    if data_parallel and device.type == "cuda" and n_visible > 1:
         model.unet = nn.DataParallel(model.unet)
         print(
-            f"DataParallel: UNet across {n_gpus} GPUs "
-            f"(effective per-GPU batch {max(1, batch_size // n_gpus)})",
+            f"DataParallel: UNet split across {n_visible} GPUs "
+            f"(effective per-GPU batch {max(1, batch_size // n_visible)})",
             flush=True,
         )
+    elif device.type == "cuda":
+        reason = "--single-gpu set" if not data_parallel else f"only {n_visible} GPU visible"
+        print(f"Single-GPU training ({reason}). For 2 GPUs set the Kaggle accelerator to 'GPU T4 x2'.", flush=True)
 
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Model parameters: {n_params:,}", flush=True)
@@ -1144,7 +1147,7 @@ def train(
 
     best_score = 0.0
     save_path = output_dir / "edge_predictor_best.pth"
-    pbar = tqdm(range(n_epochs), desc="Training", disable=not INTERACTIVE)
+    pbar = tqdm(range(n_epochs), desc="Training", disable=False)
     print(f"Detection loss: weight={det_loss_weight}, neg_weight={det_neg_weight}", flush=True)
 
     for epoch in pbar:
