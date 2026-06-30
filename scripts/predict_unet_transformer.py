@@ -620,6 +620,18 @@ def main() -> None:
                              "Default 0.99: the detector is poorly calibrated because the "
                              "ground truth is sparse (only some cells annotated), so a high "
                              "threshold keeps precision up. Sweep it for your model.")
+    parser.add_argument("--use-ilp", action="store_true",
+                        help="Post-process the predicted graph with the tracksdata ILP "
+                             "solver (global, flow-consistent linking) instead of greedy "
+                             "assignment. Needs pyscipopt; produces cleaner tracks.")
+    parser.add_argument("--ilp-edge-weight", type=float, default=-1.0,
+                        help="ILP: weight on edge_prob (default -1.0).")
+    parser.add_argument("--ilp-appearance-weight", type=float, default=0.1,
+                        help="ILP: cost of a track appearing (default 0.1).")
+    parser.add_argument("--ilp-disappearance-weight", type=float, default=0.1,
+                        help="ILP: cost of a track disappearing (default 0.1).")
+    parser.add_argument("--ilp-division-weight", type=float, default=1.0,
+                        help="ILP: cost of a division; lower to allow more splits (default 1.0).")
 
     args = parser.parse_args()
 
@@ -631,7 +643,14 @@ def main() -> None:
         slice(*[int(x) if x else None for x in args.slice.split(":")])
         if args.slice else None
     )
-    cfg = PredictConfig(det_threshold=args.det_threshold)
+    cfg = PredictConfig(
+        det_threshold=args.det_threshold,
+        use_ilp=args.use_ilp,
+        ilp_edge_weight=args.ilp_edge_weight,
+        ilp_appearance_weight=args.ilp_appearance_weight,
+        ilp_disappearance_weight=args.ilp_disappearance_weight,
+        ilp_division_weight=args.ilp_division_weight,
+    )
 
     folds = range(5) if args.split == "all" else [int(args.split)]
 
