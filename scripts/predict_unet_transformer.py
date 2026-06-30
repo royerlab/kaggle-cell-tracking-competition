@@ -615,6 +615,11 @@ def main() -> None:
                         help="Number of frame pairs per UNet forward pass (default: 4).")
     parser.add_argument("--evaluate", action="store_true",
                         help="Run evaluation against GT after saving predictions.")
+    parser.add_argument("--det-threshold", type=float, default=0.99,
+                        help="Min sigmoid probability for a detection peak to be kept. "
+                             "Default 0.99: the detector is poorly calibrated because the "
+                             "ground truth is sparse (only some cells annotated), so a high "
+                             "threshold keeps precision up. Sweep it for your model.")
 
     args = parser.parse_args()
 
@@ -626,7 +631,7 @@ def main() -> None:
         slice(*[int(x) if x else None for x in args.slice.split(":")])
         if args.slice else None
     )
-    cfg = PredictConfig()
+    cfg = PredictConfig(det_threshold=args.det_threshold)
 
     folds = range(5) if args.split == "all" else [int(args.split)]
 
