@@ -1034,7 +1034,22 @@ def train(
         train_files = test_files = [debug_video]
         print(f"Debug mode: using single video {debug_video.name}", flush=True)
     else:
-        folds = json.loads(splits_file.read_text())
+        if splits_file.exists():
+            folds = json.loads(splits_file.read_text())
+        else:
+            # No splits file: build a deterministic seed-0 split from the
+            # datasets in data_dir (90% train / 10% validation), matching the
+            # accompanying notebook. This makes --splits optional.
+            import random
+            stems = sorted(
+                p.name[:-5] for p in data_dir.glob("*.zarr")
+                if (data_dir / f"{p.name[:-5]}.geff").exists()
+            )
+            random.Random(0).shuffle(stems)
+            n_val = max(1, len(stems) // 10)
+            folds = [{"split": 0, "train": stems[n_val:], "test": stems[:n_val]}]
+            print(f"No splits file at {splits_file}; generated seed-0 split "
+                  f"({len(stems) - n_val} train / {n_val} val).", flush=True)
         fold_data = folds[fold]
         train_files = [data_dir / name for name in fold_data["train"]]
         test_files = [data_dir / name for name in fold_data["test"]]

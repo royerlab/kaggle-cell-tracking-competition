@@ -33,7 +33,8 @@ uv sync
 ### Training
 
 ```bash
-uv run python scripts/train_unet_transformer.py --method baseline --split 0 --epochs 1
+uv run python scripts/train_unet_transformer.py \
+    --data-dir data/train --split 0 --epochs 3
 ```
 
 ### Prediction
