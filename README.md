@@ -37,6 +37,8 @@ uv run python scripts/train_unet_transformer.py \
     --data-dir data/train --split 0 --epochs 3
 ```
 
+This command trained the model released in the public [UNet baseline inference notebook](https://www.kaggle.com/code/thibautgoldsborough/unet-baseline-inference-submission). It was not trained to convergence — expect gains from training longer.
+
 ### Prediction
 
 ```bash
